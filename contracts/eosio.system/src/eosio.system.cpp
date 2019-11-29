@@ -332,6 +332,7 @@ namespace eosiosystem {
            tmp >>= 5;
          }
          if( has_dot ) { // or is less than 12 characters
+         /*
             auto suffix = newact.suffix();
             if( suffix == newact ) {
                name_bid_table bids(get_self(), get_self().value);
@@ -342,7 +343,7 @@ namespace eosiosystem {
                bids.erase( current );
             } else {
                check( creator == suffix, "only suffix may create this account" );
-            }
+            } */
          }
       }
 
