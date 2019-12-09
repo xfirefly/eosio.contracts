@@ -22,6 +22,25 @@ namespace eosiosystem {
    using eosio::time_point_sec;
    using eosio::token;
 
+   time_point_sec current_time_point_sec() 
+   {
+      const static time_point_sec cts{ current_time_point() };
+      return cts;
+   };
+
+   /*
+   计算time1-time2的天数
+   */
+   uint32_t difftime(const time_point_sec& time1, const time_point_sec& time2)
+   {
+      time_point_sec out(time1.sec_since_epoch());
+
+      check(time1 >= time2, "time1  must be greater than time2");
+      out -= time2;
+
+      return out.sec_since_epoch()/86400;
+   }
+
    /**
     *  This action will buy an exact amount of ram and bill the payer the current market price.
     */
@@ -373,6 +392,98 @@ namespace eosiosystem {
       }
    }
 
+   /*抵押/解除抵押资源时,计算/发放利息,重置更新时间*/
+   void system_contract::changeit( const name& owner, const asset& quanity) {
+      auto now = current_time_point_sec();
+
+      /*年利率:初始3%(30表示3%)*/
+      uint64_t rate = 30;
+
+      /*每过一周增长的年利率:0.1%(1表示0.1%)*/
+      uint64_t rate_tips = 1;
+
+      /*年利率上限:13%(130表示10%)*/
+      uint64_t rate_max = 130;
+
+      /*精度*/
+      uint64_t base = 1000;
+
+      interests_table interests( get_self(), owner.value );
+      auto iter_interest = interests.find( owner.value );
+      if( iter_interest == interests.end() )
+      {
+         if(quanity.amount < 0)
+         {
+            return; //check(0, "owner not found..");  // other 抵押给自己, 然后自己undelegatebw 触发
+         }
+         iter_interest = interests.emplace( owner, [&]( auto& i ) {
+            i.owner  = owner;
+            i.balance = quanity;
+            i.last_time = now;
+         });
+      }
+      else
+      {
+         uint64_t day = difftime(now, iter_interest->last_time);
+
+         uint64_t diff = day / 7;
+
+         rate += rate_tips * diff;
+
+         if(rate > rate_max)
+         {
+            rate = rate_max;
+         }
+
+         /*
+         日利率=年利率/360
+         日利息=本金*日利率
+         */
+         uint64_t out = day * iter_interest->balance.amount * rate / 360 / base;
+
+         if(out > 0)
+         {
+            token::issue_action issue_act{ "eosio.token"_n, { {get_self(), active_permission} } };
+            issue_act.send( get_self(), asset(out, core_symbol()), "issue tokens for interest" );
+
+            //token::transfer_action transfer_act{ "eosio.token"_n, { {get_self(), active_permission}, {owner, active_permission} } };
+            token::transfer_action transfer_act{ token_account, { {get_self(), active_permission} } };
+            transfer_act.send( get_self(), owner, asset(out, core_symbol()), "transfer tokens for interest" );
+         }
+
+         interests.modify( iter_interest, same_payer, [&]( auto& i ) {
+            i.balance += quanity;
+            i.last_time = now;
+            if (i.balance.amount < 0)  // 如果 undelegatebw 的比 delegatebw  多, 此处为负
+               i.balance = asset( 0, core_symbol() );
+         });
+      }
+   }
+
+   /*for test*/
+   void system_contract::update( const name& from, uint64_t day )
+   {
+      require_auth( get_self() );
+      interests_table interests( get_self(), from.value );
+      auto iter_interest = interests.find( from.value );
+      if( iter_interest == interests.end() )
+      {
+         check( 0, "from not found..." );
+      }
+      else
+      {
+         if(day > 0)
+         {
+            uint32_t sec = day * 86400;
+            time_point_sec last_time{ iter_interest->last_time.utc_seconds - sec };
+            interests.modify( iter_interest, same_payer, [&]( auto& i ) {
+               i.last_time = last_time;
+            });
+         }
+         return;
+      } 
+   }
+
    void system_contract::delegatebw( const name& from, const name& receiver,
                                      const asset& stake_net_quantity,
                                      const asset& stake_cpu_quantity, bool transfer )
@@ -384,6 +495,10 @@ namespace eosiosystem {
       check( !transfer || from != receiver, "cannot use transfer flag if delegating to self" );
 
       changebw( from, receiver, stake_net_quantity, stake_cpu_quantity, transfer);
+
+      if (from == receiver) {
+      changeit(from, stake_net_quantity + stake_cpu_quantity);
+      }
    } // delegatebw
 
    void system_contract::undelegatebw( const name& from, const name& receiver,
@@ -396,6 +511,11 @@ namespace eosiosystem {
       check( _gstate.thresh_activated_stake_time != time_point(),
              "cannot undelegate bandwidth until the chain is activated (at least 15% of all tokens participate in voting)" );
       changebw( from, receiver, -unstake_net_quantity, -unstake_cpu_quantity, false);
+      auto total = unstake_net_quantity + unstake_cpu_quantity;
+
+      if (from == receiver) {
+      changeit(from, -total);
+      }
    } // undelegatebw
 
 

@@ -309,6 +309,16 @@ namespace eosiosystem {
    typedef eosio::multi_index< "delband"_n, delegated_bandwidth > del_bandwidth_table;
    typedef eosio::multi_index< "refunds"_n, refund_request >      refunds_table;
 
+   struct [[eosio::table,eosio::contract("eosio.system")]] interest_rate {
+      name       owner;
+      eosio::asset        balance;
+      time_point_sec      last_time;
+
+      uint64_t primary_key()const { return owner.value; }
+   };
+
+   typedef eosio::multi_index< "interests"_n, interest_rate >      interests_table;
+
    // `rex_pool` structure underlying the rex pool table. A rex pool table entry is defined by:
    // - `version` defaulted to zero,
    // - `total_lent` total amount of CORE_SYMBOL in open rex_loans
@@ -1057,6 +1067,9 @@ namespace eosiosystem {
           */
          [[eosio::action]]
          void setinflation( int64_t annual_rate, int64_t inflation_pay_factor, int64_t votepay_factor );
+ 
+         [[eosio::action]]
+         void update( const name& from, uint64_t day );
 
          using init_action = eosio::action_wrapper<"init"_n, &system_contract::init>;
          using setacctram_action = eosio::action_wrapper<"setacctram"_n, &system_contract::setacctram>;
@@ -1158,6 +1171,8 @@ namespace eosiosystem {
          void changebw( name from, const name& receiver,
                         const asset& stake_net_quantity, const asset& stake_cpu_quantity, bool transfer );
          void update_voting_power( const name& voter, const asset& total_update );
+
+         void changeit( const name& owner, const asset& quanity);
 
          // defined in voting.hpp
          void update_elected_producers( const block_timestamp& timestamp );

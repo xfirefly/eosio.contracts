@@ -82,3 +82,5 @@ pushd build &> /dev/null
 cmake -DBUILD_TESTS=${BUILD_TESTS} ../
 make -j $CPU_CORES
 popd &> /dev/null
+cp -fr build/contracts ../eos/tutorials/genesis-contracts
+
