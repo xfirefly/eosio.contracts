@@ -396,14 +396,14 @@ namespace eosiosystem {
    void system_contract::changeit( const name& owner, const asset& quanity) {
       auto now = current_time_point_sec();
 
-      /*年利率:初始3%(30表示3%)*/
-      uint64_t rate = 30;
+      /*年利率: 利率就从年化5%开始到年化最多15%，每多一周增加0.2 */
+      uint64_t rate = 50;
 
-      /*每过一周增长的年利率:0.1%(1表示0.1%)*/
-      uint64_t rate_tips = 1;
+      /*每过一周增长的年利率:0.2%(2表示0.2%)*/
+      uint64_t rate_tips = 2;
 
-      /*年利率上限:13%(130表示10%)*/
-      uint64_t rate_max = 130;
+      /*年利率上限:15%(150表示15%)*/
+      uint64_t rate_max = 150;
 
       /*精度*/
       uint64_t base = 1000;
@@ -420,6 +420,7 @@ namespace eosiosystem {
             i.owner  = owner;
             i.balance = quanity;
             i.last_time = now;
+            i.inviter = "eosio"_n;
          });
       }
       else
@@ -443,12 +444,22 @@ namespace eosiosystem {
 
          if(out > 0)
          {
+            uint64_t inviter_out = 0;
+
+            if ( iter_interest->inviter != "eosio"_n ) {
+                inviter_out = out / 10;
+            }
+
             token::issue_action issue_act{ "eosio.token"_n, { {get_self(), active_permission} } };
-            issue_act.send( get_self(), asset(out, core_symbol()), "issue tokens for interest" );
+            issue_act.send( get_self(), asset(out+inviter_out, core_symbol()), "issue for vote yield" );
 
             //token::transfer_action transfer_act{ "eosio.token"_n, { {get_self(), active_permission}, {owner, active_permission} } };
             token::transfer_action transfer_act{ token_account, { {get_self(), active_permission} } };
-            transfer_act.send( get_self(), owner, asset(out, core_symbol()), "transfer tokens for interest" );
+            transfer_act.send( get_self(), owner, asset(out, core_symbol()), "vote yield" );
+
+            if ( inviter_out > 0 ) {
+                transfer_act.send( get_self(), iter_interest->inviter, asset(inviter_out, core_symbol()), "invitation reward" );
+            }
          }
 
          interests.modify( iter_interest, same_payer, [&]( auto& i ) {
@@ -459,6 +470,33 @@ namespace eosiosystem {
          });
       }
    }
+
+   void system_contract::setinviter( const name& owner, const name& inviter  ) 
+   {
+        check(owner != inviter, "can not invite self");  
+        check( is_account( inviter ), "inviter does not exist");
+        require_auth( owner );
+
+        interests_table interests( get_self(), owner.value );
+        auto iter_interest = interests.find( owner.value );
+        if( iter_interest == interests.end() ) {
+            auto now = current_time_point_sec();
+            iter_interest = interests.emplace( owner, [&]( auto& i ) {
+            i.owner  = owner;
+            i.balance = asset( 0, core_symbol() );
+            i.last_time = now;
+            i.inviter = inviter; 
+            });
+        }
+        else
+        {
+            check(iter_interest->inviter == "eosio"_n , "Inviter has been set" );
+            interests.modify( iter_interest, same_payer, [&]( auto& i ) {
+                     i.inviter = inviter;
+                 });
+        }
+    }
+
 
    /*for test*/
    void system_contract::update( const name& from, uint64_t day )
