@@ -313,7 +313,7 @@ namespace eosiosystem {
       name       owner;
       eosio::asset        balance;
       time_point_sec      last_time;
-      name       inviter;  // eosio 为初始值
+      name       inviter;   
 
       uint64_t primary_key()const { return owner.value; }
    };

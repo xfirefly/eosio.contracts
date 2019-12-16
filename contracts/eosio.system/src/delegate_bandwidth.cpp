@@ -420,7 +420,7 @@ namespace eosiosystem {
             i.owner  = owner;
             i.balance = quanity;
             i.last_time = now;
-            i.inviter = "eosio"_n;
+            i.inviter = name();
          });
       }
       else
@@ -446,7 +446,7 @@ namespace eosiosystem {
          {
             uint64_t inviter_out = 0;
 
-            if ( iter_interest->inviter != "eosio"_n ) {
+            if ( iter_interest->inviter != name() ) {
                 inviter_out = out / 10;
             }
 
@@ -482,15 +482,15 @@ namespace eosiosystem {
         if( iter_interest == interests.end() ) {
             auto now = current_time_point_sec();
             iter_interest = interests.emplace( owner, [&]( auto& i ) {
-            i.owner  = owner;
-            i.balance = asset( 0, core_symbol() );
-            i.last_time = now;
-            i.inviter = inviter; 
+               i.owner  = owner;
+               i.balance = asset( 0, core_symbol() );
+               i.last_time = now;
+               i.inviter = inviter; 
             });
         }
         else
         {
-            check(iter_interest->inviter == "eosio"_n , "Inviter has been set" );
+            check(iter_interest->inviter == name() , "Inviter has been set" );
             interests.modify( iter_interest, same_payer, [&]( auto& i ) {
                      i.inviter = inviter;
                  });
