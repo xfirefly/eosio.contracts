@@ -455,7 +455,7 @@ namespace eosiosystem {
 
             //token::transfer_action transfer_act{ "eosio.token"_n, { {get_self(), active_permission}, {owner, active_permission} } };
             token::transfer_action transfer_act{ token_account, { {get_self(), active_permission} } };
-            transfer_act.send( get_self(), owner, asset(out, core_symbol()), "vote yield" );
+            transfer_act.send( get_self(), owner, asset(out, core_symbol()), "vote income" );
 
             if ( inviter_out > 0 ) {
                 transfer_act.send( get_self(), iter_interest->inviter, asset(inviter_out, core_symbol()), "invitation reward" );
